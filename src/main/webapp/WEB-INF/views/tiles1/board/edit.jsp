@@ -21,6 +21,58 @@
 <script type="text/javascript">
    $(document).ready(function(){
       
+	 	//전역변수
+	    var obj = [];
+	    
+	    //스마트에디터 프레임생성
+	    nhn.husky.EZCreator.createInIFrame({
+	        oAppRef: obj,
+	        elPlaceHolder: "content",
+	        sSkinURI: "<%= request.getContextPath() %>/resources/smarteditor/SmartEditor2Skin.html",
+	        htParams : {
+	            // 툴바 사용 여부 (true:사용/ false:사용하지 않음)
+	            bUseToolbar : true,            
+	            // 입력창 크기 조절바 사용 여부 (true:사용/ false:사용하지 않음)
+	            bUseVerticalResizer : true,    
+	            // 모드 탭(Editor | HTML | TEXT) 사용 여부 (true:사용/ false:사용하지 않음)
+	            bUseModeChanger : true,
+	        }
+	    });
+	   
+	    //완료버튼
+	    $("#btnUpdate").click(function(){
+	        //id가 content인 textarea에 에디터에서 대입
+	        obj.getById["content"].exec("UPDATE_CONTENTS_FIELD", []);
+		   	
+	        // 글제목 유효성 검사
+    	   	var subjectVal = $("#subject").val().trim();
+       		if(subjectVal == "") {
+          		alert("글제목을 입력하세요!!");
+        		return;
+       		}
+			
+       		// 글내용 유효성 검사
+    	   	var contentVal = $("#content").val().trim();
+       		if(contentVal == "") {
+          		alert("글내용을 입력하세요!!");
+        		return;
+       		}
+	   	
+       		// 글암호 유효성 검사
+    	   	var pwVal = $("#pw").val().trim();
+       		if(pwVal == "") {
+          		alert("글암호를 입력하세요!!");
+        		return;
+       		}
+	   	
+       		// 폼(form)을 전송(submit)
+       		var frm = document.editFrm;
+       		frm.method = "POST";
+       		frm.action = "<%= ctxPath%>/editEnd.action";
+       		frm.submit();
+       		
+	    } 
+	<%--    
 	   	// 완료버튼 
 	   	$("button#btnUpdate").click(function() {
 		
@@ -52,7 +104,7 @@
        		frm.submit();
        		
 	   	});
-            
+             --%>
    });// end of $(document).ready(function(){})----------------
    
 </script>

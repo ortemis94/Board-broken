@@ -2,6 +2,8 @@ package com.spring.board.controller;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.PrintWriter;
 import java.util.*;
 
 import javax.servlet.http.HttpServletRequest;
@@ -873,10 +875,14 @@ public class BoardController {
 	  //	  	       사용자가 목록보기 버튼을 클릭했을 때 돌아갈 페이지를 알려주기 위해
 	  //		       현재 페이지 주소를 뷰단으로 넘겨준다.
       String gobackURL = request.getParameter("gobackURL");
-   // System.out.println("#### 확인용 gobackURL : " + gobackURL);
-   // #### 확인용 gobackURL : list.action?searchType=&searchWord=&currentShowPageNo=2
-      mav.addObject("gobackURL", gobackURL);
       
+      if (gobackURL != null) {
+    	  gobackURL = gobackURL.replaceAll(" ", "&"); // 이전글, 다음글을 클릭해서 넘어온 것임.
+    	  
+    	  System.out.println("#### 확인용 gobackURL : " + gobackURL);
+    	  // #### 확인용 gobackURL : list.action?searchType=&searchWord=&currentShowPageNo=2
+    	  mav.addObject("gobackURL", gobackURL);
+      }
       // 조회하고자 하는 글의 글쓴이의 userid값을 받아오기
       // String fk_userid = request.getParameter("fk_userid");
       
@@ -1001,6 +1007,11 @@ public class BoardController {
       
       // 삭제해야 할 글번호 가져오기
       String seq = request.getParameter("seq");
+     
+//      String gobackURL = request.getParameter("gobackURL");
+//      gobackURL = gobackURL.replaceAll(" ", "&");
+//      
+//      mav.addObject("gobackURL");
       
       // 삭제해야할 글1개 내용 가져와서 로그인한 사람이 쓴 글이라면 글삭제가 가능하지만 
       // 다른 사람이 쓴 글은 삭제가 불가하도록 해야 한다.
@@ -1030,25 +1041,69 @@ public class BoardController {
    
    // === #77. 글삭제 페이지 완료하기 === //
    @RequestMapping(value="/delEnd.action", method= {RequestMethod.POST})
-   public ModelAndView delEnd(BoardVO boardvo, HttpServletRequest request, ModelAndView mav) {
+   public ModelAndView delEnd(HttpServletRequest request, ModelAndView mav) {
 	   
 	   /*  글 삭제를 하려면 원본글의 글암호와 삭제시 입력해준 암호가 일치할때만 
        	       글 삭제가 가능하도록 해야한다. */
+	   
 	   String seq = request.getParameter("seq");
 	   String pw = request.getParameter("pw");
 	   
 	   Map<String, String> paraMap = new HashMap<>();
 	   paraMap.put("seq", seq);
 	   paraMap.put("pw", pw);
-	   
+	/*   
+	   // === #164. 파일첨부가 된 글이라면 글 삭제시 먼저 첨부파일을 삭제해주어야 한다. === //
+       BoardVO boardvo = service.getViewWithNoAddCount(seq);
+       String fileName = boardvo.getFileName();
+       
+       if( fileName != null || !"".equals(fileName) ) {
+          paraMap.put("fileName", fileName); // 삭제해야할 파일명
+       
+          HttpSession session = request.getSession();
+          String root = session.getServletContext().getRealPath("/");
+          String path = root+"resources"+ File.separator +"files"; 
+          
+          paraMap.put("path", path); // 삭제해야할 파일이 저장된 경로
+       }
+       //////////////////////////////////////////////////////////////////////
+	*/   
+	   BoardVO boardvo = service.getViewWithNoAddCount(seq);
+
 	   int n = service.del(paraMap);
 	   // n이 1이라면 정상적으로 변경됨.
 	   // n이 0이라면 글삭제에 필요한 글암호가 틀린경우
 	   
 	   if (n == 0) {
 		   mav.addObject("message", "암호가 일치하지 않아 글 삭제가 불가합니다.");
-		   mav.addObject("loc", request.getContextPath()+"/view.action?seq="+seq);
+	  //   mav.addObject("loc", request.getContextPath()+"/view.action?seq="+seq);
+		   
+	   //  === #166. 글삭제 실패시 글1개를 보여주면서 목록보기 버튼 클릭시 올바르게 가기 위해서 gobackURL=list.action 을 추가해줌. === //
+	       mav.addObject("loc", request.getContextPath()+"/view.action?seq="+seq+"&gobackURL=list.action");
 	   }else {
+		
+		   String fileName = boardvo.getFileName();
+		   
+		   if ( fileName != null || !"".equals(fileName) ) {
+			   HttpSession session = request.getSession();
+			   String root = session.getServletContext().getRealPath("/");
+			   
+			   System.out.println("~~~~ webapp의 절대경로 => " + root);
+			   // ~~~~ webapp의 절대경로 => C:\NCS\workspace(spring)\.metadata\.plugins\org.eclipse.wst.server.core\tmp0\wtpwebapps\Board\
+		   
+			   String path = root+"resources"+File.separator+"files";
+			   /* File.separator 는 운영체제에서 사용하는 폴더와 파일의 구분자이다.
+			             운영체제가 Windows 이라면 File.separator 는  "\" 이고,
+			             운영체제가 UNIX, Linux 이라면  File.separator 는 "/" 이다. 
+			   */
+			   
+			   try {
+				   fileManager.doFileDelete(fileName, path);
+			    } catch (Exception e) {
+			    	e.printStackTrace();
+				}
+		   }
+
 		   mav.addObject("message", "글삭제 성공!!");
 		   mav.addObject("loc", request.getContextPath()+"/list.action");
 	   }
@@ -1232,6 +1287,146 @@ public class BoardController {
 
 	   return jsonObj.toString();
    }
+   
+   
+   // === #163. 첨부파일 다운로드 받기 === //
+   @RequestMapping(value="/download.action")
+   public void requiredLogin_download(HttpServletRequest request, HttpServletResponse response) {
+	   
+	   String seq = request.getParameter("seq");
+	   // 첨부파일이 있는 글번호
+	   
+	   /*
+	   		첨부파일이 있는 글번호에서 
+	   		202012100939042675425645700.jpg 처럼
+	   		이러한 fileName 값을 DB에서 가져와야 한다.
+	   		또한 orgFilename 값도 DB에서 가져와야 한다.
+	   */
+	   
+	   response.setContentType("text/html; charset=UTF-8");
+	   PrintWriter writer = null;
+	   
+	   try {
+		   Integer.parseInt(seq);
+		   
+		   BoardVO boardvo = service.getViewWithNoAddCount(seq);
+		   String fileName = boardvo.getFileName(); // 202012100939042675425645700.jpg 이것이 바로 WAS(톰캣) 디스크에 저장된 파일명이다.
+		   String orgFilename = boardvo.getOrgFilename(); // berkelekle덩크04.jpg 다운로드시 보여줄 파일명이다.
+		   
+		   // 첨부파일이 저장되어 있는 WAS(톰캣)의 디스크 경로명을 알아와야만 다운로드를 해줄수 있다. 
+	       // 이 경로는 우리가 파일첨부를 위해서 /addEnd.action 에서 설정해두었던 경로와 똑같아야 한다.
+	       // WAS의 webapp 의 절대경로를 알아와야 한다. 
+		   HttpSession session = request.getSession();
+		   String root = session.getServletContext().getRealPath("/");
+		   
+		   System.out.println("~~~~ webapp의 절대경로 => " + root);
+		   // ~~~~ webapp의 절대경로 => C:\NCS\workspace(spring)\.metadata\.plugins\org.eclipse.wst.server.core\tmp0\wtpwebapps\Board\
+	   
+		   String path = root+"resources"+File.separator+"files";
+		   /* File.separator 는 운영체제에서 사용하는 폴더와 파일의 구분자이다.
+		             운영체제가 Windows 이라면 File.separator 는  "\" 이고,
+		             운영체제가 UNIX, Linux 이라면  File.separator 는 "/" 이다. 
+		   */
+		   
+		   // **** file 다운로드 하기 **** // 
+		   boolean flag = false; // file 다운로드의 성공,실패를  알려주는 용도
+		   flag = fileManager.doFileDownload(fileName, orgFilename, path, response);
+		   // file 다운로드 성공시 flag는 true, 
+		   // file 다운로드 실패시 flag는 false를 가진다. 
+		   
+		   if (!flag) {
+			   // 다운로드가 실패할 경우 메세지를 띄워준다.
+			   try {
+				   writer = response.getWriter();
+				   // 웹브라우저상에 메세지를 쓰기 위한 객체 생성.
+				   
+				   writer.println("<script type='text/javascript'>alert('파일 다운로드가 불가합니다.'); history.back();</script>");
+			   } catch (IOException e) {}
+			   
+		   }
+		   
+	   } catch (NumberFormatException e) {
+		   // 유저가 url상으로 올바른 숫자를 입력하지 않았다면 
+		   try {
+			   writer = response.getWriter();
+			   // 웹브라우저상에 메세지를 쓰기 위한 객체 생성.
+			   writer.println("<script type='text/javascript'>alert('파일 다운로드가 불가합니다.'); history.back();</script>");
+		   } catch (IOException e1) {
+			   
+		   }
+	   }
+	   
+   }
+   
+    
+   	// ==== #168. 스마트에디터. 드래그앤드롭을 사용한 다중사진 파일업로드 ====
+   	@RequestMapping(value="/image/multiplePhotoUpload.action", method={RequestMethod.POST})
+   	public void multiplePhotoUpload(HttpServletRequest req, HttpServletResponse res) {
+	    
+		/*
+		   1. 사용자가 보낸 파일을 WAS(톰캣)의 특정 폴더에 저장해주어야 한다.
+		   >>>> 파일이 업로드 되어질 특정 경로(폴더)지정해주기
+		        우리는 WAS 의 webapp/resources/photo_upload 라는 폴더로 지정해준다.
+		 */
+			
+		// WAS 의 webapp 의 절대경로를 알아와야 한다. 
+		HttpSession session = req.getSession();
+		String root = session.getServletContext().getRealPath("/"); 
+		String path = root + "resources"+File.separator+"photo_upload";
+		// path 가 첨부파일들을 저장할 WAS(톰캣)의 폴더가 된다. 
+			
+		// System.out.println(">>>> 확인용 path ==> " + path); 
+		// >>>> 확인용 path ==> C:\springworkspace\.metadata\.plugins\org.eclipse.wst.server.core\tmp0\wtpwebapps\Board\resources\photo_upload  
+			
+		File dir = new File(path);
+		if(!dir.exists())
+		    dir.mkdirs();
+			
+		String strURL = "";
+			
+		try {
+			if(!"OPTIONS".equals(req.getMethod().toUpperCase())) {
+			    String filename = req.getHeader("file-name"); //파일명을 받는다 - 일반 원본파일명
+		    		
+		        // System.out.println(">>>> 확인용 filename ==> " + filename); 
+		        // >>>> 확인용 filename ==> berkelekle%ED%8A%B8%EB%9E%9C%EB%94%9405.jpg
+		    		
+		    	   InputStream is = req.getInputStream();
+		    	/*
+		          요청 헤더의 content-type이 application/json 이거나 multipart/form-data 형식일 때,
+		          혹은 이름 없이 값만 전달될 때 이 값은 요청 헤더가 아닌 바디를 통해 전달된다. 
+		          이러한 형태의 값을 'payload body'라고 하는데 요청 바디에 직접 쓰여진다 하여 'request body post data'라고도 한다.
+	
+	               	  서블릿에서 payload body는 Request.getParameter()가 아니라 
+	            	  Request.getInputStream() 혹은 Request.getReader()를 통해 body를 직접 읽는 방식으로 가져온다. 	
+		    	*/
+		    	   String newFilename = fileManager.doFileUpload(is, filename, path);
+		    	
+			   int width = fileManager.getImageWidth(path+File.separator+newFilename);
+				
+			   if(width > 600)
+			      width = 600;
+					
+			// System.out.println(">>>> 확인용 width ==> " + width);
+			// >>>> 확인용 width ==> 600
+			// >>>> 확인용 width ==> 121
+		    	
+			   String CP = req.getContextPath(); // board
+				
+			   strURL += "&bNewLine=true&sFileName="; 
+	            	   strURL += newFilename;
+	            	   strURL += "&sWidth="+width;
+	            	   strURL += "&sFileURL="+CP+"/resources/photo_upload/"+newFilename;
+	    	}
+		
+			/// 웹브라우저상에 사진 이미지를 쓰기 ///
+		    PrintWriter out = res.getWriter();
+		    out.print(strURL);
+		} catch(Exception e){
+			e.printStackTrace();
+		}
+	   
+   	}
    
    
    

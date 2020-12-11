@@ -179,6 +179,7 @@
  	
 	<!-- #140. (댓글 및 답변글 쓰기 게시판에서) 글 1개 보여주기 
 			       먼저, 위의 #67.을 주석처리 한 다음에 아래와 같이 한다. -->
+	<!-- 
 	<select id="getView" parameterType="String" resultType="com.spring.board.model.BoardVO">
 		select previousseq, previoussubject
 		     , seq, fk_userid, name, subject, content, readCount
@@ -196,6 +197,34 @@
 		         , lead(subject, 1) over(order by seq desc) AS nextsubject
 		    
 		    	, groupno, fk_seq, depthno
+		    from tbl_board
+		    where status = 1
+		)V
+		where V.seq = #{seq}
+	</select>
+	-->
+	
+	<!-- #161. (댓글 및 답변글 쓰기 및 파일첨부가 있는 게시판에서) 글 1개 보여주기 
+			       먼저, 위의 #140.을 주석처리 한 다음에 아래와 같이 한다. -->
+	<select id="getView" parameterType="String" resultType="com.spring.board.model.BoardVO">
+		select previousseq, previoussubject
+		     , seq, fk_userid, name, subject, content, readCount
+		     , regDate, nextseq, nextsubject
+		     , groupno, fk_seq, depthno
+		     , fileName, orgFilename, fileSize
+		from
+		(
+		    select lag(seq, 1) over(order by seq desc) AS previousseq
+		         , lag(subject, 1) over(order by seq desc) AS previoussubject
+		         
+		         , seq, fk_userid, name, subject, content, readCount
+		         , to_char(regDate, 'yyyy-mm-dd hh24:mi:ss') AS regDate
+		         
+		         , lead(seq, 1) over(order by seq desc) AS nextseq
+		         , lead(subject, 1) over(order by seq desc) AS nextsubject
+		    
+		    	, groupno, fk_seq, depthno
+				, fileName, orgFilename, fileSize
 		    from tbl_board
 		    where status = 1
 		)V
@@ -405,7 +434,7 @@
 	</select>
 	
 	
-	<!-- === #158. 글쓰기(파일첨부가 있는 글쓰기) === -->
+	<!-- === #159. 글쓰기(파일첨부가 있는 글쓰기) === -->
 	<insert id="add_withFile" parameterType="com.spring.board.model.BoardVO">
 		<if test="fk_seq.equals('')">
 		insert into tbl_board(seq, fk_userid, name, subject, content, pw, readCount, regDate, status, groupno, fk_seq, depthno, fileName, orgFilename, fileSize)

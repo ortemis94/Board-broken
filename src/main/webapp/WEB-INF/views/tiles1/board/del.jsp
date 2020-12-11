@@ -1,5 +1,7 @@
 <%@ page language="java" contentType="text/html; charset=UTF-8"
     pageEncoding="UTF-8"%>
+<%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
+<%@ taglib prefix="fn" uri="http://java.sun.com/jsp/jstl/functions" %>
 
 <% String ctxPath = request.getContextPath(); %>    
 
@@ -62,7 +64,8 @@
          <button type="button" id="btnDelete">완료</button>
          <button type="button" onclick="javascript:history.back()">취소</button>
       </div>
-         
+      <c:set var="gobackURL2" value='${ fn:replace(gobackURL, "&" ," ") }' />
+	  <input type="hidden" name="gobackURL" value='${ fn:replace(gobackURL, "&" ," ") }'/>
    </form>
    
 </div>

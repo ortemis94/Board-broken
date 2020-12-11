@@ -1,6 +1,8 @@
 <%@ page language="java" contentType="text/html; charset=UTF-8"
     pageEncoding="UTF-8"%>
 <%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
+<%@ taglib prefix="fmt" uri="http://java.sun.com/jsp/jstl/fmt" %>
+<%@ taglib prefix="fn" uri="http://java.sun.com/jsp/jstl/functions" %>
 
 <style type="text/css">
    table, th, td, input, textarea {border: solid gray 1px;}
@@ -324,13 +326,29 @@
 	         <td>${boardvo.regDate}</td>
 	      </tr>
 	      
-	      
+	      <!-- === #162. 첨부파일 이름 및 파일크기를 보여주고 첨부파일을 다운로드 되도록 만들기 === -->
+	      <tr>
+	         <th>첨부파일</th>
+	         <td>
+	         	<c:if test="${not empty sessionScope.loginuser}">
+	         		<a href="<%= request.getContextPath()%>/download.action?seq=${boardvo.seq}">${boardvo.orgFilename}</a>
+	         	</c:if>
+	         	<c:if test="${empty sessionScope.loginuser}">
+	         		${boardvo.orgFilename}
+	         	</c:if>
+	         </td>
+	      </tr>
+	      <tr>
+	         <th>파일크기(bytes)</th>
+	         <td><fmt:formatNumber value="${boardvo.fileSize}" pattern="#,###" /></td>
+	      </tr>
 	   </table>
 	   
 	   <br/>
 	   
-	   <div style="margin-bottom: 1%;">이전글&nbsp;:&nbsp;<span class="move" onclick="javascript:location.href='view.action?seq=${boardvo.previousseq}'">${boardvo.previoussubject}</span></div>
-	   <div style="margin-bottom: 1%;">다음글&nbsp;:&nbsp;<span class="move" onclick="javascript:location.href='view.action?seq=${boardvo.nextseq}'">${boardvo.nextsubject}</span></div>
+	   <c:set var="gobackURL2" value='${ fn:replace(gobackURL, "&" ," ") }' />
+	   <div style="margin-bottom: 1%;">이전글&nbsp;:&nbsp;<span class="move" onclick="javascript:location.href='view.action?seq=${boardvo.previousseq}&gobackURL=${gobackURL2}'">${boardvo.previoussubject}</span></div>
+	   <div style="margin-bottom: 1%;">다음글&nbsp;:&nbsp;<span class="move" onclick="javascript:location.href='view.action?seq=${boardvo.nextseq}&gobackURL=${gobackURL2}'">${boardvo.nextsubject}</span></div>
    </c:if>
    <c:if test="${empty boardvo}">
    	   <div style="padding: 50px 0; font-size: 16pt; color: red;">존재하지 않습니다</div>
@@ -346,7 +364,7 @@
    <button type="button" onclick="javascript:location.href='${gobackURL}'">목록보기</button>
    
    <button type="button" onclick="javascript:location.href='<%= request.getContextPath()%>/edit.action?seq=${boardvo.seq}'">수정</button>
-   <button type="button" onclick="javascript:location.href='<%= request.getContextPath()%>/del.action?seq=${boardvo.seq}'">삭제</button>
+   <button type="button" onclick="javascript:location.href='<%= request.getContextPath()%>/del.action?seq=${boardvo.seq}&gobackURL=${gobackURL2}'">삭제</button>
    
    <%-- === #141. 어떤글에 대한 답변글쓰기는 로그인 되어진 회원의 gradelevel 컬럼의 값이 10인 직원들만 답변글쓰기가 가능하다. --%>
    <c:if test="${sessionScope.loginuser.gradelevel eq 10}">

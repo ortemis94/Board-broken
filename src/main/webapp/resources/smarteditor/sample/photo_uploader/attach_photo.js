@@ -41,7 +41,7 @@
 				if(!!oNavigator.safari && oNavigator.version <= 5){
 					bSupportDragAndDropAPI = false;
 				}else{
-					bSupportDragAndDropAPI = true; //bSupportDragAndDropAPI = false;
+					bSupportDragAndDropAPI = true; // bSupportDragAndDropAPI = false;
 				}
 			} else {
 				bSupportDragAndDropAPI = false;
